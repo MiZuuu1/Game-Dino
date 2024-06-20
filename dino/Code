@@ -1,0 +1,109 @@
+from ursina import *
+import random as r
+
+app = Ursina()
+window.fullscreen = True
+window.color = color.white
+
+# Game state variable
+game_state = 'start'
+
+background = Entity(model='quad', texture='assets/background-01.jpg', scale=(25, 10, 1), z=10)
+
+
+# Dino entity
+dino = Animation('assets/dino', collider='box', x=-5)
+
+# Ground entities
+ground1 = Entity(model='quad', texture='assets/street-02', scale=(60, 1.5, 1), z=1)
+ground2 = duplicate(ground1, x=50)
+pair = [ground1, ground2]
+
+# Cactus entities
+cactus = Entity(model='quad', texture='assets/obor-01', x=20, y=-0.3, collider='box')
+cacti = []
+
+def newCactus():
+    if game_state == 'playing':
+        new = duplicate(cactus, x=12 + r.randint(0, 5))
+        cacti.append(new)
+    invoke(newCactus, delay=2)
+
+# Points label
+label = Text(text='Points: 0', color=color.black, position=(-0.5, 0.4))
+points = 0
+
+# Sounds
+jump_sound = Audio('assets/beep', autoplay=False)
+background_music = Audio('assets/backsong.wav', loop=True, autoplay=False)
+gameover_sound = Audio('assets/gameover.wav', autoplay=False)
+
+# Start button
+start_button = Button(text='Start', color=color.azure, scale=(0.2, 0.1), position=(0, 0))
+
+# Game over screen and restart button
+game_over_screen = Text(text='Game Over', origin=(0, 0), scale=2, background=True, enabled=False)
+restart_button = Button(text='Restart', color=color.azure, scale=(0.2, 0.1), position=(0, -0.1), enabled=False)
+
+def reset_game():
+    global points, game_state, cacti
+    points = 0
+    label.text = f'Points: {points}'
+    for c in cacti:
+        destroy(c)
+    cacti.clear()
+    dino.x = -5
+    dino.texture = 'assets/dino'
+    game_over_screen.enabled = False
+    restart_button.enabled = False
+    game_state = 'playing'
+    background_music.play()
+
+def update():
+    global points, game_state  # Declare game_state as global
+    if game_state == 'playing':
+        points += 1
+        label.text = f'Points: {points}'
+        for ground in pair:
+            ground.x -= 6 * time.dt
+            if ground.x < -35:
+                ground.x += 100
+        for c in cacti:
+            c.x -= 6 * time.dt
+        if dino.intersects().hit:
+            dino.texture = 'assets/hit'
+            game_over_screen.enabled = True
+            restart_button.enabled = True
+            game_state = 'game_over'
+            background_music.stop()
+            gameover_sound.play()  # Play game-over sound
+            application.pause()
+
+def start_game():
+    global game_state  # Declare game_state as global
+    start_button.enabled = False
+    game_state = 'playing'
+    background_music.play()
+    invoke(newCactus, delay=2)
+
+def restart_game():
+    global game_state  # Declare game_state as global
+    application.resume()
+    reset_game()
+
+def input(key):
+    global game_state  # Declare game_state as global
+    if key == 'space' and game_state == 'playing' and dino.y < 0.01:
+        jump_sound.play()
+        dino.animate_y(2, duration=0.4, curve=curve.out_sine)
+        dino.animate_y(0, duration=0.4, delay=0.4, curve=curve.in_sine)
+
+# Bind button actions
+start_button.on_click = start_game
+restart_button.on_click = restart_game
+
+# Camera settings
+camera.orthographic = True
+camera.fov = 10
+
+app.run()
